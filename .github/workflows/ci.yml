@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref so a busy PR does not queue stale work.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: quality (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22 is the floor declared in package.json engines; 24 guards the upper range.
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      # The QA drivers are plain .mjs run through tsx, so nothing else parses them.
+      # A syntax check is the cheapest way to catch a driver mangled by an editor,
+      # a bad merge, or an over-eager autofix before it reports a phantom failure.
+      - name: Syntax-check QA drivers
+        run: for f in scripts/qa/*.mjs; do node --check "$f"; done
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Build server and web
+        run: npm run build
+
+  qa-surfaces:
+    name: qa surfaces (http, ws, sshd stub)
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: C1 end-to-end over a real SSH channel
+        run: npx tsx scripts/qa/qa-e2e.mjs --evidence-dir .omo-evidence/C1
+
+      - name: C2 auth and input validation
+        run: npx tsx scripts/qa/qa-auth.mjs --evidence-dir .omo-evidence/C2
+
+      - name: C3 concurrent tabs without cross-talk
+        run: npx tsx scripts/qa/qa-multitab.mjs --evidence-dir .omo-evidence/C3
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-surface-evidence
+          path: .omo-evidence/
+          if-no-files-found: warn
+
+  qa-mobile-ui:
+    name: qa mobile ui (chromium 390x844)
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # C4 drives the built PWA, not the dev server, so the web bundle must exist.
+      - name: Build web bundle
+        run: npm run build:web
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: C4 mobile UI proof
+        run: npx tsx scripts/qa/qa-ui.mjs --evidence-dir .omo-evidence/C4
+
+      - name: Upload UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-mobile-ui-evidence
+          path: .omo-evidence/
+          if-no-files-found: warn
