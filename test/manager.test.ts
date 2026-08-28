@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SshSessionManager } from "../src/server/ssh/manager.js";
 import type { Space } from "../src/shared/contracts.js";
 import { type StubSshServer, startStubSshServer } from "./helpers/ssh-stub.js";
@@ -279,5 +279,47 @@ describe("SshSessionManager", () => {
     ).rejects.toBeTruthy();
 
     expect(manager.size()).toBe(1);
+  });
+
+  it("reports a mid-session TCP reset through onError instead of crashing", async () => {
+    stub = await startStubSshServer();
+    manager = new SshSessionManager();
+
+    // An unhandled 'error' event on the ssh2 Client takes the whole process
+    // down, which killed the real server when a phone dropped its Wi-Fi.
+    const unhandled: Error[] = [];
+    const onUncaught = (err: Error) => unhandled.push(err);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const errors: string[] = [];
+      const errored = new Promise<void>((resolve) => {
+        void manager.openSession({
+          tabId: "tab-reset",
+          space: makeSpace({}, stub.port),
+          cols: 80,
+          rows: 24,
+          onOutput: () => {},
+          onExit: () => {},
+          onError: (message) => {
+            errors.push(message);
+            resolve();
+          },
+        });
+      });
+
+      // Wait for the session to be established before ripping the socket out.
+      await vi.waitFor(() => expect(manager.size()).toBe(1));
+      stub.resetConnections();
+
+      await errored;
+
+      expect(errors).toHaveLength(1);
+      expect(unhandled).toEqual([]);
+      // The dead session must not linger, otherwise the tab can never reopen.
+      await vi.waitFor(() => expect(manager.size()).toBe(0));
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
   });
 });

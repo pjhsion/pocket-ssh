@@ -1,4 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
+import type { Socket } from "node:net";
 import ssh2 from "ssh2";
 
 const { Server } = ssh2;
@@ -21,6 +22,12 @@ export interface StubSshServer {
   port: number;
   close(): Promise<void>;
   sessionCount(): number;
+  /**
+   * Hard-resets every connected client's TCP socket, which surfaces on the
+   * client as ECONNRESET rather than a graceful SSH disconnect. Models a
+   * NAT/Wi-Fi drop, which is what a phone does when its screen sleeps.
+   */
+  resetConnections(): void;
 }
 
 export function startStubSshServer(options: StubSshServerOptions = {}): Promise<StubSshServer> {
@@ -34,8 +41,17 @@ export function startStubSshServer(options: StubSshServerOptions = {}): Promise<
   });
 
   let activeSessions = 0;
+  const sockets = new Set<Socket>();
 
   const server = new Server({ hostKeys: [privateKey] }, (client) => {
+    // ssh2 exposes the raw socket on the client instance; track it so a test
+    // can rip the connection out from under the session.
+    const rawSocket = (client as unknown as { _sock?: Socket })._sock;
+    if (rawSocket) {
+      sockets.add(rawSocket);
+      rawSocket.once("close", () => sockets.delete(rawSocket));
+    }
+
     client.on("authentication", (ctx) => {
       if (ctx.method === "password" && ctx.username === username && ctx.password === password) {
         ctx.accept();
@@ -108,6 +124,9 @@ export function startStubSshServer(options: StubSshServerOptions = {}): Promise<
       resolve({
         port: address.port,
         sessionCount: () => activeSessions,
+        resetConnections: () => {
+          for (const socket of sockets) socket.resetAndDestroy();
+        },
         close: () =>
           new Promise<void>((resolveClose) => {
             server.close(() => resolveClose());

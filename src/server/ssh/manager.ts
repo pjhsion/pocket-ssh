@@ -72,6 +72,18 @@ export class SshSessionManager {
             }
             settled = true;
 
+            // Once the session is live, a transport error is no longer an
+            // openSession failure: the promise has settled, so routing it into
+            // fail() would strip every listener and leave the socket's next
+            // 'error' event unhandled, taking the whole process down. A phone
+            // dropping Wi-Fi produces exactly that ECONNRESET.
+            client.removeAllListeners("error");
+            client.on("error", (err: Error) => {
+              this.sessions.delete(tabId);
+              client.end();
+              onError(err.message);
+            });
+
             channel.on("data", (chunk: Buffer) => {
               onOutput(chunk.toString("utf8"));
             });
