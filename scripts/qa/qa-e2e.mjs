@@ -25,9 +25,7 @@ try {
   const spaces = await api(harness.baseUrl, "/api/spaces", { token: harness.token });
   const leaked = JSON.stringify(spaces.json ?? []).includes("secret");
   rec.check("GET /api/spaces never returns the SSH password", !leaked);
-  const socket = new WebSocket(
-    `${harness.wsBase}/ws?tabId=${seeded.tabId}&token=${harness.token}`,
-  );
+  const socket = new WebSocket(`${harness.wsBase}/ws?tabId=${seeded.tabId}&token=${harness.token}`);
   await awaitEvent(socket, "open", () => true, { label: "ws open" });
   rec.log("websocket open");
   const ready = await awaitEvent(

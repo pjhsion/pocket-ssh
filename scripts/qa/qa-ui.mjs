@@ -51,11 +51,20 @@ try {
 
   const navSpaces = page.getByTestId("nav-spaces");
   await navSpaces.click();
+  const existingSpace = page.locator(".row-title").first();
+  await existingSpace.waitFor({ state: "visible", timeout: 15_000 });
+  rec.check(
+    "spaces view lists the configured space",
+    await existingSpace.isVisible(),
+    await existingSpace.innerText(),
+  );
+  await page.getByRole("button", { name: "+ Add" }).click();
   const spaceForm = page.getByTestId("space-form");
   await spaceForm.waitFor({ state: "visible", timeout: 15_000 });
   rec.check("spaces view exposes the space form", await spaceForm.isVisible());
 
   await page.getByTestId("nav-agents").click();
+  await page.getByRole("button", { name: "+ Add" }).click();
   const agentForm = page.getByTestId("agent-form");
   await agentForm.waitFor({ state: "visible", timeout: 15_000 });
   rec.check("agents view exposes the agent form", await agentForm.isVisible());
@@ -106,6 +115,8 @@ try {
   await page.waitForFunction(() => document.querySelector(".xterm-rows") !== null, null, {
     timeout: 15_000,
   });
+  // xterm reads keystrokes through its hidden helper textarea; focus it the way a tap would.
+  await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type(`echo ${MARKER}`);
   await page.keyboard.press("Enter");
   await page.waitForFunction(

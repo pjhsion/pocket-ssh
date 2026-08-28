@@ -9,9 +9,7 @@ let harness;
 let receipts = [];
 
 async function openChannel(harnessRef, tabId) {
-  const socket = new WebSocket(
-    `${harnessRef.wsBase}/ws?tabId=${tabId}&token=${harnessRef.token}`,
-  );
+  const socket = new WebSocket(`${harnessRef.wsBase}/ws?tabId=${tabId}&token=${harnessRef.token}`);
   await awaitEvent(socket, "open", () => true, { label: `open ${tabId}` });
   await awaitEvent(socket, "message", (raw) => JSON.parse(raw.toString()).type === "ready", {
     label: `ready ${tabId}`,
@@ -25,12 +23,10 @@ async function openChannel(harnessRef, tabId) {
 }
 
 function awaitMarker(channel, marker) {
-  return awaitEvent(
-    channel.socket,
-    "message",
-    () => channel.text.includes(marker),
-    { label: marker, timeoutMs: 20_000 },
-  );
+  return awaitEvent(channel.socket, "message", () => channel.text.includes(marker), {
+    label: marker,
+    timeoutMs: 20_000,
+  });
 }
 
 try {
