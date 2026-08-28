@@ -1,0 +1,10 @@
+# Normalize to LF in the repository and on checkout everywhere.
+# Biome's formatter expects LF, so a Windows clone with core.autocrlf=true would
+# otherwise fail `npm run lint` on 22 files that are byte-identical to CI's.
+* text=auto eol=lf
+
+# Binary assets must never be touched by line-ending conversion.
+*.png binary
+*.ico binary
+*.woff binary
+*.woff2 binary
