@@ -68,12 +68,17 @@ export function startStubSshServer(options: StubSshServerOptions = {}): Promise<
         let buffer = "";
 
         channel.on("data", (chunk: Buffer) => {
-          buffer += chunk.toString("utf8");
-          let newlineIndex = buffer.indexOf("\n");
-          while (newlineIndex !== -1) {
-            const rawLine = buffer.slice(0, newlineIndex);
-            buffer = buffer.slice(newlineIndex + 1);
-            const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+          const received = chunk.toString("utf8");
+          // A real pty echoes typed characters back and maps CR to NL (ICRNL).
+          // Mirror both so terminal clients behave the same against the stub.
+          channel.write(received.replace(/\r/g, "\r\n"));
+          buffer += received;
+
+          let breakIndex = buffer.search(/[\r\n]/);
+          while (breakIndex !== -1) {
+            const line = buffer.slice(0, breakIndex);
+            buffer = buffer.slice(breakIndex + 1);
+            if (buffer.startsWith("\n")) buffer = buffer.slice(1);
 
             if (line === "exit") {
               channel.exit(0);
@@ -81,8 +86,8 @@ export function startStubSshServer(options: StubSshServerOptions = {}): Promise<
               return;
             }
 
-            channel.write(`${line}\n`);
-            newlineIndex = buffer.indexOf("\n");
+            channel.write(`${line}\r\n`);
+            breakIndex = buffer.search(/[\r\n]/);
           }
         });
 
