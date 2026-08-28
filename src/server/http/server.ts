@@ -89,15 +89,6 @@ function bearerFromHeader(req: IncomingMessage): string | undefined {
 }
 
 /** Extract token from query string (?token=…). */
-function tokenFromQuery(urlPath: string): string | undefined {
-  // urlPath may be a relative URL path+query, wrap it with a dummy base.
-  try {
-    const u = new URL(urlPath, "http://localhost");
-    return u.searchParams.get("token") ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 // ─── body reader ─────────────────────────────────────────────────────────────
 
@@ -285,7 +276,7 @@ async function handleResource(opts: {
   const { req, res, match, list, get, create, update, remove, createSchema, updateSchema } = opts;
   const wrapOutput = opts.wrapOutput ?? ((x) => x);
 
-  const id = match.params["id"];
+  const id = match.params.id;
   const method = req.method ?? "GET";
 
   // ── Collection (no :id) ──────────────────────────────────────────────────
@@ -378,11 +369,12 @@ export function createServer(opts: CreateServerOptions): CreateServerResult {
       // /api/spaces[/:id]
       const spacesExact = matchRoute("/api/spaces", pathname);
       const spacesItem = matchRoute("/api/spaces/:id", pathname);
-      if (spacesExact || spacesItem) {
+      const spacesMatch = spacesExact ?? spacesItem;
+      if (spacesMatch) {
         await handleResource({
           req,
           res,
-          match: (spacesExact ?? spacesItem)!,
+          match: spacesMatch,
           list: () => store.listSpaces(),
           get: (id) => store.getSpace(id),
           create: (body) => store.createSpace(body as Parameters<typeof store.createSpace>[0]),
@@ -399,11 +391,12 @@ export function createServer(opts: CreateServerOptions): CreateServerResult {
       // /api/agents[/:id]
       const agentsExact = matchRoute("/api/agents", pathname);
       const agentsItem = matchRoute("/api/agents/:id", pathname);
-      if (agentsExact || agentsItem) {
+      const agentsMatch = agentsExact ?? agentsItem;
+      if (agentsMatch) {
         await handleResource({
           req,
           res,
-          match: (agentsExact ?? agentsItem)!,
+          match: agentsMatch,
           list: () => store.listAgents(),
           get: (id) => store.getAgent(id),
           create: (body) => store.createAgent(body as Parameters<typeof store.createAgent>[0]),
@@ -419,11 +412,12 @@ export function createServer(opts: CreateServerOptions): CreateServerResult {
       // /api/tabs[/:id]
       const tabsExact = matchRoute("/api/tabs", pathname);
       const tabsItem = matchRoute("/api/tabs/:id", pathname);
-      if (tabsExact || tabsItem) {
+      const tabsMatch = tabsExact ?? tabsItem;
+      if (tabsMatch) {
         await handleResource({
           req,
           res,
-          match: (tabsExact ?? tabsItem)!,
+          match: tabsMatch,
           list: () => store.listTabs(),
           get: (id) => store.getTab(id),
           create: (body) => store.createTab(body as Parameters<typeof store.createTab>[0]),
