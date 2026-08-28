@@ -75,7 +75,11 @@ export const TabPatchSchema = TabInputSchema.partial();
 /** Frames the browser sends over /ws. */
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("input"), data: z.string() }),
-  z.object({ type: z.literal("resize"), cols: z.number().int().min(20).max(500), rows: z.number().int().min(5).max(300) }),
+  z.object({
+    type: z.literal("resize"),
+    cols: z.number().int().min(20).max(500),
+    rows: z.number().int().min(5).max(300),
+  }),
   z.object({ type: z.literal("close") }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
