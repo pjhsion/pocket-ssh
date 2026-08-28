@@ -62,6 +62,9 @@ if (initialToken) {
 }
 
 store.subscribe(render);
+// Paint once up front: subscribers only fire on change, so a first load with no
+// stored token would otherwise leave the page blank instead of showing login.
+render(store.getState());
 
 // Register the service worker so the app shell is installable and offline-ready.
 if ("serviceWorker" in navigator) {
